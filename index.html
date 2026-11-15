@@ -2,95 +2,49 @@
 <style>
 :root{--navy:#17365d;--blue:#2866c7;--bg:#f2f5f9;--line:#dbe3ed}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#172334;font:16px -apple-system,BlinkMacSystemFont,sans-serif}header{background:var(--navy);color:white;padding:18px;position:sticky;top:0;z-index:3}h1{font-size:20px;margin:0 0 4px}header p{font-size:13px;margin:0;color:#dce7f5}main{max-width:800px;margin:auto;padding:12px 10px 100px}.card{background:white;border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:12px}h2{font-size:17px;color:var(--navy);margin:0 0 12px}.field{margin-bottom:14px}label{display:block;font-size:14px;font-weight:650;margin-bottom:6px}input,select,textarea{width:100%;min-height:46px;padding:11px;border:1px solid #bdc9d8;border-radius:9px;background:#fff;color:#172334;font:16px -apple-system,BlinkMacSystemFont,sans-serif}textarea{min-height:85px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.small{font-size:12px;color:#64748b}.actions{display:flex;flex-wrap:wrap;gap:8px}button,.filebtn{border:0;border-radius:9px;padding:12px 14px;background:var(--blue);color:white;font-weight:700;font-size:14px;min-height:44px}.secondary{background:#e7edf5!important;color:var(--navy)!important}.danger{background:#fff0f0!important;color:#9e2525!important}.bottom{position:fixed;bottom:0;left:0;right:0;background:#ffffffed;border-top:1px solid var(--line);padding:9px 10px calc(9px + env(safe-area-inset-bottom));z-index:4}.bottom>div{max-width:800px;margin:auto;display:flex;gap:8px}.bottom button{flex:1}.q{font-size:11px;color:var(--blue);font-weight:800;margin-bottom:4px}.status{color:#137a4b;font-size:12px;margin-top:8px}progress{width:100%;height:8px}details summary{font-weight:700;color:var(--navy)}@media(max-width:540px){.row{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>Briotrack – Hospital Survey</h1><p>Mobile-friendly · Saves locally and syncs to Briotrack cloud · CSV export</p></header>
+<header><h1>Briotrack – Hospital Survey</h1><p>iPad-friendly · Autosaves on this device · Export responses to Excel</p></header>
 <main>
 <section class="card"><h2>Hospital visit</h2><div class="field"><label for="hospital">Select hospital</label><select id="hospital"></select></div><div class="row"><div class="field"><label for="visitDate">Visit date</label><input id="visitDate" type="date"></div><div class="field"><label for="interviewer">Interviewer</label><input id="interviewer" placeholder="Name"></div></div><progress id="progress" value="0" max="25"></progress><div class="small" id="progressText"></div><div class="status" id="status"></div></section>
 <div id="form"></div>
-<section class="card"><h2>Export and backup</h2><p class="small">Answers autosave on this device and sync to the Briotrack database when online. Export a CSV backup regularly; it opens in Excel or Numbers.</p><div class="actions"><button id="csv">Export all responses (.csv)</button><button class="secondary" id="backup">Backup data (.json)</button><label class="filebtn secondary" for="restore">Restore backup</label><input id="restore" type="file" accept=".json" hidden></div><div class="actions" style="margin-top:10px"><button class="danger" id="clear">Clear this hospital</button></div><p class="small" id="count"></p></section>
-<section class="card"><details><summary>How to use on iPad</summary><ol><li>Open this file in Safari (not only the Files preview). Use Share → Open in Safari if needed.</li><li>Select a hospital and enter answers. Changes save automatically in this browser.</li><li>Tap Export all responses to create a CSV, then open it in Excel or Numbers.</li><li>Use Backup data before switching devices or clearing Safari website data.</li></ol><p class="small">Local browser backup is retained. Cloud sync requires an internet connection. Export a CSV backup regularly.</p></details></section>
+<section class="card"><h2>Export and backup</h2><p class="small">Your answers stay in this browser on this iPad. Export regularly. The CSV can be opened in Excel or Numbers.</p><div class="actions"><button id="csv">Export all responses (.csv)</button><button class="secondary" id="backup">Backup data (.json)</button><label class="filebtn secondary" for="restore">Restore backup</label><input id="restore" type="file" accept=".json" hidden></div><div class="actions" style="margin-top:10px"><button class="danger" id="clear">Clear this hospital</button></div><p class="small" id="count"></p></section>
+<section class="card"><details><summary>How to use on iPad</summary><ol><li>Open this file in Safari (not only the Files preview). Use Share → Open in Safari if needed.</li><li>Select a hospital and enter answers. Changes save automatically in this browser.</li><li>Tap Export all responses to create a CSV, then open it in Excel or Numbers.</li><li>Use Backup data before switching devices or clearing Safari website data.</li></ol><p class="small">This is a local form and does not send your hospital information to a server. Keep using the same Safari browser on this iPad.</p></details></section>
 </main><div class="bottom"><div><button class="secondary" id="prev">← Previous</button><button id="save">Save</button><button class="secondary" id="next">Next →</button></div></div>
 <script>
-
-const SUPABASE_URL="https://xyuyfkzxqfersidfpmgq.supabase.co";
-const SUPABASE_KEY="sb_publishable_xf6f6Q1y_gHc0TWNXBlu3Q_JFPQMZkH";
-const KEY="briotrack_survey_local_v1";
-let db={}, hospitals=[], idx=0, syncTimer=null, cloudReady=false;
-const $=id=>document.getElementById(id);
-const fallbackHospitals=[
-"Sahyadri Superspeciality Hospital – Dwarka/Wadala Road","Ashoka Medicover Hospital – Parab Nagar","Apollo Hospitals – Panchavati","KIMS Manavata Hospital – Mumbai Naka","HCG Manavata Cancer Centre – Mumbai Naka","Dr. Vasantrao Pawar Medical College Hospital – Adgaon","Six Sigma Medicare – Mahatma Nagar","Medinova / Shatabdi Super Speciality Hospital – Mumbai Naka","Wockhardt Hospital – Wadala Naka","Magnum Multispeciality Hospital – Nashik Road","Nine Pearls Hospital – Vallabh Nagar","KRH / Soham Hospital – Mumbai Naka","Vijan Hospital & Research Centre – College Road","Suyog Hospital – Panchavati","Shree Saibaba Heart Institute – Mumbai Naka","Sankalp Speciality Hospital – Mumbai Naka","Suvidha Criticare Hospital – Bhujbal Farm","CityCare Hospital & Research Centre – Dwarka","Criticare Hospital for Children – Nashik Road","Life Care Hospital – Lekha Nagar","Vakratund Multispeciality Hospital – Pathardi Phata","Ashwini Multispeciality Hospital – Govind Nagar","Sahajeevan General Hospital – CIDCO","Saykhedkar Hospital & Research Centre – CIDCO","Sujata Birla Hospital & Medical Research Centre – Nashik Road"
+const hospitals=["Sahyadri Superspeciality Hospital – Dwarka/Wadala Road","Ashoka Medicover Hospital – Parab Nagar","Apollo Hospitals – Panchavati","KIMS Manavata Hospital – Mumbai Naka","HCG Manavata Cancer Centre – Mumbai Naka","Dr. Vasantrao Pawar Medical College Hospital – Adgaon","Six Sigma Medicare – Mahatma Nagar","Medinova / Shatabdi Super Speciality Hospital – Mumbai Naka","Wockhardt Hospital – Wadala Naka","Magnum Multispeciality Hospital – Nashik Road","Nine Pearls Hospital – Vallabh Nagar","KRH / Soham Hospital – Mumbai Naka","Vijan Hospital & Research Centre – College Road","Suyog Hospital – Panchavati","Shree Saibaba Heart Institute – Mumbai Naka","Sankalp Speciality Hospital – Mumbai Naka","Suvidha Criticare Hospital – Bhujbal Farm","CityCare Hospital & Research Centre – Dwarka","Criticare Hospital for Children – Nashik Road","Life Care Hospital – Lekha Nagar","Vakratund Multispeciality Hospital – Pathardi Phata","Ashwini Multispeciality Hospital – Govind Nagar","Sahajeevan General Hospital – CIDCO","Saykhedkar Hospital & Research Centre – CIDCO","Sujata Birla Hospital & Medical Research Centre – Nashik Road"];
+const groups=[
+["Hospital profile",[
+["area","Area / location","text"],["type","Hospital type","sel:Multispeciality|Specialty|General|Trust|Government|Other"],["beds","Approximate bed capacity","number"],["person","Person interviewed","text"],["designation","Designation","text"],["contact","Contact / email (optional)","text"]]],
+["Current equipment-management process",[
+["q1","Q1. How is equipment inventory maintained?","sel:Excel|Paper register|Software|Mixed|No formal system|Other"],["q2","Q2. Approximate number of medical equipment items","number"],["q3","Q3. Who maintains equipment records?","area"],["q4","Q4. How is preventive maintenance (PM) tracked?","sel:Calendar|Excel|Software|Paper|Service provider|No fixed system|Other"],["q5","Q5. How are breakdowns reported?","sel:Phone|WhatsApp|Register|Software|Email|Other"],["q6","Q6. Where is service history stored?","sel:Paper files|Excel|Software|Vendor records|Not maintained|Other"],["q7","Q7. Are calibration certificates and documents tracked?","sel:Yes, centrally|Yes, separately|Partly|No|Not sure"],["q8","Q8. Have PMs been missed or delayed in the last 6 months?","sel:Frequently|Sometimes|Rarely|Never|Don't know"],["q9","Q9. How significant is equipment downtime?","sel:High|Moderate|Low|Not an issue|Don't know"],["q10","Q10. How difficult is audit / inspection preparation?","sel:High|Moderate|Low|No difficulty|Don't know"],["q11","Q11. Staff time spent monthly on equipment records (hours)","number"],["q12","Q12. Biggest equipment-management problems","area"],["q13","Q13. Recent example of missed PM, breakdown or audit issue","area"],["q14","Q14. Biggest limitation of the current system","area"]]],
+["Digital solution and Briotrack fit",[
+["q15","Q15. Would a central digital equipment-management system help?","sel:Definitely|Probably|Not sure|Probably not|No"],["q16","Q16. Which features would be most useful?","area"],["q17","Q17. Preferred access","sel:Mobile|Desktop|Both|No preference"],["q18","Q18. Main adoption concerns","sel:Staff training|Data-entry workload|Cost|Internet|Privacy|Existing system|Other"],["q19","Q19. Who would use the system?","area"],["q20","Q20. Who approves or pays for this software?","sel:Hospital owner|Administrator|Biomedical department|Purchase department|IT|Head office|Other|Not sure"],["q21","Q21. When could the hospital consider a pilot?","sel:Immediately|Within 1 month|1–3 months|3–6 months|Later|Not interested"],["q22","Q22. Has a budget been allocated?","sel:Yes|No|Can be proposed|Not sure"],["q23","Q23. Acceptable monthly price (₹)","sel:Below 500|500–999|1,000–1,999|2,000–4,999|5,000+|Depends on features|No willingness to pay"],["q24","Q24. Preferred pricing model","sel:Monthly|Annual|Per bed|Per equipment|Included in AMC|One-time|Other"],["q25","Q25. Willing to participate in a pilot?","sel:Yes, confirmed|Interested, needs approval|Maybe later|No"],["q26","Q26. What is required to approve a pilot?","area"],["q27","Q27. Next action agreed","sel:Demo scheduled|Follow-up call|Proposal required|Pilot discussion|Introduction to decision-maker|No next step"],["q28","Q28. Follow-up date","date"]]],
+["Interviewer assessment (complete after visit)",[
+["q29","Q29. Problem severity (0–10)","range"],["q30","Q30. Buying readiness (0–10)","range"],["score","Prospect score (0–10)","range"],["lead","Lead status","sel:Hot|Warm|Cold|Not a fit"],["owner","Follow-up owner","text"],["q31","Q31. Interviewer assessment / observations","area"],["notes","Additional notes","area"]]]
 ];
-const preferredDbOrder=[
-"Sahyadri Superspeciality Hospital","Ashoka Medicover Hospital","Apollo Hospitals","KIMS Manavata Hospital","HCG Manavata Cancer Centre (Unit 2)","Dr. Vasantrao Pawar Medical College, Hospital & Research Center","Six Sigma Medicare","Medinova Super Speciality Hospital Pvt Ltd - Shatabdi Hospital","Wockhardt Hospital","Magnum Multispeciality Hospital","Nine Pearls Hospital","KRH - Soham Hospital","Vijan Hospital & Research Centre","Suyog Hospital","Shree Saibaba Heart Institute & Multispeciality Hospital","Sankalp Hospital","Suvidha Criticare","CityCare Hospital","Criticare Children's Hospital","Life Care Hospital","Vakratund Hospital","Ashwini Hospital","Sahajeevan Hospital","Saykhedkar Hospital","Sujata Birla Hospital"
-];
+const KEY="briotrack_survey_local_v1";let db={},idx=0;const $=id=>document.getElementById(id);
 try{db=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){db={}}
 function rec(){return db[idx]||(db[idx]={})}
-function uuid(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==="x"?r:(r&3|8)).toString(16)})}
-function localSave(message="Saved on this device"){
- try{localStorage.setItem(KEY,JSON.stringify(db));$("status").textContent=message+" · "+new Date().toLocaleTimeString()}
- catch(e){$("status").textContent="Browser storage unavailable. Export a backup."}
- stats()
-}
-async function api(path, options={}){
- const response=await fetch(SUPABASE_URL+"/rest/v1/"+path,{
-  ...options,
-  headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",...(options.headers||{})}
- });
- if(!response.ok){let message=await response.text();throw new Error(message||("Supabase error "+response.status))}
- return response.status===204?null:response.json()
-}
-async function loadHospitals(){
- try{
-  const rows=await api("hospitals?select=id,hospital_name,location,created_at");
-  if(!Array.isArray(rows)||!rows.length)throw new Error("No hospitals found in the online directory.");
-  const byName=new Map(rows.map(r=>[r.hospital_name.toLowerCase(),r]));
-  const ordered=[];
-  preferredDbOrder.forEach(name=>{const row=byName.get(name.toLowerCase());if(row){ordered.push({id:row.id,name:row.hospital_name,location:row.location||""});byName.delete(name.toLowerCase())}});
-  rows.forEach(r=>{if(byName.has(r.hospital_name.toLowerCase())){ordered.push({id:r.id,name:r.hospital_name,location:r.location||""});byName.delete(r.hospital_name.toLowerCase())}});
-  hospitals=ordered;cloudReady=true;
- }catch(e){
-  hospitals=fallbackHospitals.map(name=>({id:null,name,location:""}));cloudReady=false;
-  $("status").textContent="Offline mode: using saved hospital list. Cloud connection needs checking.";
- }
- const select=$("hospital");select.innerHTML="";
- hospitals.forEach((h,i)=>{let o=document.createElement("option");o.value=i;o.textContent=(i+1)+". "+h.name;select.append(o)});
- $("progress").max=hospitals.length;idx=Math.min(idx,Math.max(0,hospitals.length-1));select.value=idx;buildForm();
-}
-function queueCloudSave(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncCurrent(),900)}
-async function syncCurrent(){
- if(!cloudReady){$("status").textContent="Saved on this device. Cloud sync is unavailable.";return}
- const r=rec(),h=hospitals[idx];if(!h||!h.id){$("status").textContent="Saved locally. This hospital is not linked to the online directory.";return}
- collect();if(!r.clientId)r.clientId=uuid();localSave("Saved locally; syncing");
- const answers={};groups.flatMap(g=>g[1]).forEach(q=>{answers[q[0]]=r[q[0]]??""});
- answers.person=answers.person||"";answers.designation=answers.designation||"";
- try{
-  await api("rpc/save_survey_response",{method:"POST",body:JSON.stringify({p_client_id:r.clientId,p_hospital_id:h.id,p_visit_date:r.visitDate||null,p_interviewer:r.interviewer||null,p_responses:answers})});
-  r.cloudSyncedAt=new Date().toISOString();localSave("Saved online successfully");
- }catch(e){localSave("Saved locally; cloud sync failed");$("status").textContent="Saved locally, but cloud sync failed: "+e.message.slice(0,180)}
-}
-function buildForm(){
- let root=$("form");root.innerHTML="";
- groups.forEach(g=>{let sec=document.createElement("section");sec.className="card";let title=document.createElement("h2");title.textContent=g[0];sec.append(title);
- g[1].forEach(q=>{let wrap=document.createElement("div");wrap.className="field";let lab=document.createElement("label");lab.htmlFor=q[0];lab.textContent=q[1];wrap.append(lab);let input;
- if(q[2].startsWith("sel:")){input=document.createElement("select");let empty=document.createElement("option");empty.value="";empty.textContent="Select an answer";input.append(empty);q[2].slice(4).split("|").forEach(v=>{let o=document.createElement("option");o.value=v;o.textContent=v;input.append(o)})}
- else if(q[2]==="area"){input=document.createElement("textarea");input.placeholder="Enter answer or exact comments…"}
- else{input=document.createElement("input");input.type=q[2];if(q[2]==="range"){input.min=0;input.max=10;input.step=1;input.value=0;let badge=document.createElement("span");badge.className="small";badge.textContent="0 / 10";input.addEventListener("input",()=>badge.textContent=input.value+" / 10");wrap.append(input,badge);input.addEventListener("change",()=>{rec()[q[0]]=input.value;localSave();queueCloudSave()});sec.append(wrap);return}}
- input.id=q[0];input.addEventListener("change",()=>{rec()[q[0]]=input.value;localSave();queueCloudSave()});wrap.append(input);sec.append(wrap)});root.append(sec)});
- fill()
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db));$("status").textContent="Saved on this iPad · "+new Date().toLocaleTimeString()}catch(e){$("status").textContent="Browser storage unavailable. Please export a backup."}stats()}
+function build(){
+let h=$("hospital");h.innerHTML="";hospitals.forEach((n,i)=>{let o=document.createElement("option");o.value=i;o.textContent=(i+1)+". "+n;h.append(o)});h.value=idx;
+let root=$("form");root.innerHTML="";
+groups.forEach(g=>{let sec=document.createElement("section");sec.className="card";let title=document.createElement("h2");title.textContent=g[0];sec.append(title);
+g[1].forEach(q=>{let wrap=document.createElement("div");wrap.className="field";let lab=document.createElement("label");lab.htmlFor=q[0];lab.textContent=q[1];wrap.append(lab);let input;
+if(q[2].startsWith("sel:")){input=document.createElement("select");let empty=document.createElement("option");empty.value="";empty.textContent="Select an answer";input.append(empty);q[2].slice(4).split("|").forEach(v=>{let o=document.createElement("option");o.value=v;o.textContent=v;input.append(o)})}
+else if(q[2]==="area"){input=document.createElement("textarea");input.placeholder="Enter answer or exact comments…"}
+else{input=document.createElement("input");input.type=q[2];if(q[2]==="range"){input.min=0;input.max=10;input.step=1;input.value=0;let badge=document.createElement("span");badge.className="small";badge.textContent="0 / 10";input.addEventListener("input",()=>badge.textContent=input.value+" / 10");wrap.append(input,badge);input.addEventListener("change",()=>{rec()[q[0]]=input.value;save()});sec.append(wrap);return}}
+input.id=q[0];input.addEventListener("change",()=>{rec()[q[0]]=input.value;save()});wrap.append(input);sec.append(wrap)});root.append(sec)});
+fill()
 }
 function fill(){let r=rec();$("hospital").value=idx;$("visitDate").value=r.visitDate||"";$("interviewer").value=r.interviewer||"";groups.flatMap(g=>g[1]).forEach(q=>{let n=$(q[0]);if(n)n.value=r[q[0]]??(q[2]==="range"?0:"")});stats()}
-function collect(){let r=rec();r.hospitalName=hospitals[idx]?.name||"";r.hospitalId=hospitals[idx]?.id||null;r.visitDate=$("visitDate").value;r.interviewer=$("interviewer").value;groups.flatMap(g=>g[1]).forEach(q=>{let n=$(q[0]);if(n)r[q[0]]=n.value})}
-function go(n){collect();localSave();idx=Math.max(0,Math.min(hospitals.length-1,n));fill();window.scrollTo(0,0)}
-function stats(){let n=hospitals.filter((h,i)=>db[i]&&db[i].visitDate).length;$("progress").max=Math.max(1,hospitals.length);$("progress").value=n;$("progressText").textContent=n+" of "+hospitals.length+" visits dated";$("count").textContent=Object.values(db).filter(r=>r&&Object.keys(r).length).length+" local hospital record(s) saved."}
+function collect(){let r=rec();r.hospitalName=hospitals[idx];r.visitDate=$("visitDate").value;r.interviewer=$("interviewer").value;groups.flatMap(g=>g[1]).forEach(q=>{let n=$(q[0]);if(n)r[q[0]]=n.value})}
+function go(n){collect();save();idx=Math.max(0,Math.min(24,n));fill();window.scrollTo(0,0)}
+function stats(){let n=hospitals.filter((h,i)=>db[i]&&db[i].visitDate).length;$("progress").value=n;$("progressText").textContent=n+" of 25 visits dated";$("count").textContent=Object.values(db).filter(r=>r&&Object.keys(r).length).length+" hospital record(s) saved."}
 function download(content,name,type){let a=document.createElement("a"),u=URL.createObjectURL(new Blob([content],{type}));a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1200)}
-$("hospital").addEventListener("change",e=>go(+e.target.value));
-$("visitDate").addEventListener("change",()=>{rec().visitDate=$("visitDate").value;localSave();queueCloudSave()});
-$("interviewer").addEventListener("change",()=>{rec().interviewer=$("interviewer").value;localSave();queueCloudSave()});
-$("save").onclick=()=>{collect();localSave();syncCurrent()};
-$("prev").onclick=()=>go(idx-1);$("next").onclick=()=>go(idx+1);
-$("csv").onclick=()=>{collect();localSave();let qs=groups.flatMap(g=>g[1]),heads=["Hospital","Visit date","Interviewer",...qs.map(q=>q[1])],keys=["hospitalName","visitDate","interviewer",...qs.map(q=>q[0])];let rows=[heads];hospitals.forEach((h,i)=>{let r=db[i]||{};if(Object.values(r).some(v=>v!==""))rows.push(keys.map(k=>k==="hospitalName"?h.name:r[k]||""))});let csv="\ufeff"+rows.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");download(csv,"Briotrack_Hospital_Survey.csv","text/csv;charset=utf-8")};
-$("backup").onclick=()=>{collect();localSave();download(JSON.stringify(db,null,2),"Briotrack_Survey_Backup.json","application/json")};
-$("restore").onchange=async e=>{try{db=JSON.parse(await e.target.files[0].text());localSave();fill();alert("Backup restored. Tap Save to sync the selected hospital to the cloud.")}catch(x){alert("Unable to restore this file.")}e.target.value=""};
-$("clear").onclick=()=>{if(confirm("Clear answers for "+(hospitals[idx]?.name||"this hospital")+" from this device? This does not delete the online copy.")){delete db[idx];localSave();fill()}};
-(async()=>{await loadHospitals();stats()})();
-
+$("hospital").addEventListener("change",e=>go(+e.target.value));$("visitDate").addEventListener("change",()=>{rec().visitDate=$("visitDate").value;save()});$("interviewer").addEventListener("change",()=>{rec().interviewer=$("interviewer").value;save()});$("save").onclick=()=>{collect();save()};$("prev").onclick=()=>go(idx-1);$("next").onclick=()=>go(idx+1);
+$("csv").onclick=()=>{collect();save();let qs=groups.flatMap(g=>g[1]),heads=["Hospital","Visit date","Interviewer",...qs.map(q=>q[1])],keys=["hospitalName","visitDate","interviewer",...qs.map(q=>q[0])];let rows=[heads];hospitals.forEach((h,i)=>{let r=db[i]||{};if(Object.values(r).some(v=>v!==""))rows.push(keys.map(k=>k==="hospitalName"?h:r[k]||""))});let csv="\ufeff"+rows.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");download(csv,"Briotrack_Hospital_Survey.csv","text/csv;charset=utf-8")};
+$("backup").onclick=()=>{collect();save();download(JSON.stringify(db,null,2),"Briotrack_Survey_Backup.json","application/json")};
+$("restore").onchange=async e=>{try{db=JSON.parse(await e.target.files[0].text());save();fill();alert("Backup restored.")}catch(x){alert("Unable to restore this file.")}e.target.value=""};
+$("clear").onclick=()=>{if(confirm("Clear answers for "+hospitals[idx]+"?")){delete db[idx];save();fill()}};
+build();stats();
 </script></body></html>
